@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no">
+    <title>Documento 1</title>
+    <style>
+      @font-face { font-family: "Spectral"; font-weight: 300; font-style: normal; src: url("TemplateData/Spectral-Light.ttf") format("truetype"); }
+      @font-face { font-family: "Spectral"; font-weight: 300; font-style: italic; src: url("TemplateData/Spectral-LightItalic.ttf") format("truetype"); }
+      :root { --ink: #050608; --paper: #ebebe8; --dim: #8e9399; --brass: #c9a86b; }
+      html, body { margin: 0; padding: 0; height: 100%; background: var(--ink); overflow: hidden; }
+      body { display: flex; align-items: center; justify-content: center; }
+      /* el juego está compuesto entre 3:2 y 16:9; fuera de eso, bandas negras */
+      #stage { position: relative; background: var(--ink); }
+      #unity-canvas { display: block; width: 100%; height: 100%; background: var(--ink); outline: none; }
+      #cover { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+               background: radial-gradient(ellipse at 50% 42%, #0c1016 0%, var(--ink) 70%); color: var(--paper);
+               font-family: "Spectral", Georgia, serif; font-weight: 300; transition: opacity 0.9s ease; user-select: none; }
+      #cover.gone { opacity: 0; pointer-events: none; }
+      #title { font-size: clamp(30px, 6.4vmin, 92px); letter-spacing: 0.2em; margin: 0 0 0.2em 0.2em; }
+      #sub { font-style: italic; color: var(--dim); font-size: clamp(14px, 2.1vmin, 28px); margin-bottom: 7vmin; }
+      #bar { width: min(46vmin, 520px); height: 1px; background: rgba(255,255,255,0.09); position: relative; }
+      #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--brass); box-shadow: 0 0 10px rgba(201,168,107,0.6); transition: width 0.25s linear; }
+      #state { margin-top: 2.4vmin; font-size: clamp(13px, 1.7vmin, 22px); color: var(--dim); letter-spacing: 0.04em; min-height: 1.5em; }
+      #cover.ready { cursor: pointer; }
+      #cover.ready #state { color: var(--paper); animation: breathe 2.4s ease-in-out infinite; }
+      #cover.ready #bar { opacity: 0; transition: opacity 0.6s; }
+      @keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+      #note { position: absolute; bottom: 3.5vmin; font-size: clamp(11px, 1.35vmin, 17px); color: #5d6268; font-style: italic; }
+      #error { color: #e58a7a; font-style: normal; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="cover">
+        <div id="title">DOCUMENTO 1</div>
+        <div id="sub"></div>
+        <div id="bar"><div id="fill"></div></div>
+        <div id="state"></div>
+        <div id="note"></div>
+      </div>
+    </div>
+    <script src="Build/Web.loader.js"></script>
+    <script>
+      var en = !/^es/i.test(navigator.language || "");
+      var L = en
+        ? { sub: "Chapter 2 · Transporter", load: "Loading", prep: "Preparing the street…", go: "Click to enter", note: "Best with headphones · Esc opens the menu", err: "Could not start: " }
+        : { sub: "Capítulo 2 · Transportador", load: "Cargando", prep: "Preparando la calle…", go: "Haz clic para entrar", note: "Mejor con auriculares · Esc abre el menú", err: "No se ha podido arrancar: " };
+      var $ = function (id) { return document.getElementById(id); };
+      $("sub").textContent = L.sub; $("note").textContent = L.note; $("state").textContent = L.load + "…";
+
+      var stage = $("stage"), canvas = $("unity-canvas");
+      function fit() {
+        var w = window.innerWidth, h = window.innerHeight, a = w / h;
+        if (a > 16 / 9) w = Math.round(h * 16 / 9); else if (a < 1.5) h = Math.round(w / 1.5);
+        stage.style.width = w + "px"; stage.style.height = h + "px";
+      }
+      window.addEventListener("resize", fit); fit();
+
+      // nitidez de pantallas retina, sin pasar de ~1600 px de alto de render
+      var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2, 1600 / Math.max(1, stage.clientHeight)));
+
+      createUnityInstance(canvas, {
+        arguments: [],
+        dataUrl: "Build/Web.data.unityweb",
+        frameworkUrl: "Build/Web.framework.js.unityweb",
+        codeUrl: "Build/Web.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Documento 1",
+        productName: "Documento 1",
+        productVersion: "1.0",
+        devicePixelRatio: dpr,
+        showBanner: function (msg, type) { if (type === "error") console.error(msg); else console.warn(msg); },
+      }, function (p) {
+        $("fill").style.width = Math.round(p * 100) + "%";
+        $("state").textContent = p < 0.9 ? L.load + " " + Math.round(p * 100) + " %" : L.prep;
+      }).then(function (instance) {
+        window.unityInstance = instance;
+        var cover = $("cover");
+        cover.classList.add("ready"); $("state").textContent = L.go;
+        // el clic desbloquea el audio del navegador y da el foco al juego
+        cover.addEventListener("click", function () {
+          cover.classList.add("gone"); canvas.focus();
+          setTimeout(function () { cover.style.display = "none"; }, 1000);
+        }, { once: true });
+      }).catch(function (message) {
+        $("state").innerHTML = '<span id="error"></span>'; $("error").textContent = L.err + message;
+      });
+    </script>
+  </body>
+</html>
